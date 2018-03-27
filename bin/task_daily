@@ -1,0 +1,59 @@
+#!/usr/bin/env python2
+import sys
+import json
+import datetime
+import pandas as pd
+from os import path
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import logging
+from email_context import EmailConnection
+
+logger = logging.getLogger("Email")
+logging.basicConfig(level=logging.INFO)
+
+TODAY = str(datetime.date.today())
+KEEP_COLUMNS = ["id", "urgency", "project", "due", "description"]
+HTML_TEMPLATE = """
+<html>
+    <head></head>
+    <body>
+        <p>
+            {content}
+        </p>
+    </body>
+</html>
+"""
+
+
+def main():
+# create the DataFrame from a list of Series representations
+# of each json entry
+    df = pd.DataFrame(
+        map(
+            pd.Series,
+            json.loads(sys.stdin.read())
+        )
+    )
+    columns = filter(lambda col: col in KEEP_COLUMNS, list(df.columns))
+    df = df.loc[:, columns]
+    pd.set_option('max_colwidth', max(map(len, df["description"])))
+
+    with EmailConnection("anthonyagnone@gmail.com", path.expanduser("~/.creds/gmail")) as emailer:
+        msg = MIMEMultipart()
+        addr_from = "anthonyagnone@gmail.com"
+        addr_to = "anthonyagnone@gmail.com"
+        msg["From"] = addr_from
+        msg["To"] = addr_to
+        msg["Subject"] = "{} Daily To Do".format(TODAY)
+        msg.attach(
+            MIMEText(
+                HTML_TEMPLATE.format(content=df.to_html(justify='center', index=False)),
+                "html"
+            )
+        )
+        emailer.sendmail(addr_from, addr_to, msg.as_string())
+
+
+if __name__ == '__main__':
+    main()

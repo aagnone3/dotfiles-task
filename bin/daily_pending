@@ -1,0 +1,3 @@
+#!/bin/bash
+source /home/pi/.profile
+/usr/local/bin/task project:personal status:pending \(priority or \(due.after:today-1day and due.before:today+1wk\)\) export | email_taskwarrior_export

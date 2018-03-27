@@ -1,0 +1,8 @@
+#!/bin/bash
+source /home/pi/.profile
+
+# week in review
+/usr/local/bin/task project:personal status:completed due.after:today-1wk export | email_taskwarrior_export -s "Weekly Review"
+
+# week ahead
+/usr/local/bin/task project:personal status:pending \(due.after:today-1day and due.before:today+1wk\) export | email_taskwarrior_export -s "Weekly Outlook"

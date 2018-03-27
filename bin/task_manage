@@ -1,0 +1,71 @@
+#!/usr/bin/env python2
+import pandas as pd
+import json
+from functools import partial
+from datetime import datetime
+from dateutil.tz import tzlocal
+from taskw import TaskWarrior
+
+from self_email import send_mail
+
+
+def task_to_df(raw):
+    KEEP_COLUMNS = ["id", "urgency", "project", "due", "description"]
+    df = pd.DataFrame(
+        map(
+            pd.Series,
+            json.loads(raw) if isinstance(raw, (str, unicode)) else raw
+        )
+    )
+    columns = filter(lambda col: col in KEEP_COLUMNS, list(df.columns))
+    DF = df.loc[:, columns]
+    pd.set_option('max_colwidth', max(map(len, df["description"])))
+    return df.to_html(justify="center")
+
+
+def ensure_project_lower(w, task_item):
+    # if the project doesn't exist, make a filler
+    default_project = "default"
+    if not task_item.get('project', None):
+        task_item['project'] = default_project
+
+    project = task_item['project']
+    lowered = project.lower()
+    if lowered != project:
+        task_item['project'] = lowered
+        w.task_update(task_item)
+
+
+def get_task_ids(warrior):
+
+    def get_task_id(t):
+        return t['id']
+
+    return map(get_task_id, warrior.load_tasks()['pending'])
+
+
+def id_to_item(w, task_id):
+    _, task_item = w.get_task(id=task_id)
+    return task_item
+
+
+def is_overdue(task_item):
+    return task_item.get("due", False) and datetime.now(tz=tzlocal()) >= task_item["due"]
+
+
+def task_mop_up():
+    w = TaskWarrior(marshal=True)
+    task_ids = get_task_ids(w)
+    task_items = map(partial(id_to_item, w), task_ids)
+
+    # ensure all projects are lower-case
+    map(partial(ensure_project_lower, w), task_items)
+
+
+def task_alert_overdue():
+    w = TaskWarrior(marshal=True)
+    task_ids = get_task_ids(w)
+    task_items = map(partial(id_to_item, w), task_ids)
+
+    # check for overdue events
+    send_mail(task_to_df(filter(is_overdue, task_items)), subject="OVERDUE TASKS")
